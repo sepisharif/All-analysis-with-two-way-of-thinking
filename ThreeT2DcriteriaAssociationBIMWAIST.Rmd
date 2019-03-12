@@ -1,0 +1,369 @@
+---
+title: "ThreeT2DcriteriaAssociationBIMWAIST"
+output: html_document
+theme: cerulean
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+######in this document, by the same way of thinking to make the T2D case and control in each population ( three T2D criteria, and obviously more individuals as Case),I am calculating association between T2D and BMI, WAIST, WEIGHT and HEIGHT in a logistic regressin adjusted by SEX, AGE and PCA. Then I wanted to see how BMI and WAIST could associate with T2D separately and together. Also I did check about the weight and height association with T2D as well in each populatio. Overal result shows that BMI is not associated with T2D in EastPolynesian(p= 0.653) and Westpolynesian (weack association, p=0.020) wherase WAIST is strongly associated with T2D and this is the core of the finding of this study so far. I will discuss it in depth somewheerelse (result section of the manuscript). by taking out WAIST from the model BMI has the strong associated with T2D. I did some playing around the hight and weight as well and I show the result in the (result section of th emanuscript) 
+
+```{r setup, include=FALSE}
+library(knitr)
+library(dplyr)
+library(narnia)
+
+
+AllNewCleanPopulation<-read.delim(  "../Data/AllNewCleanDatasetAndPCA.txt"  , header=TRUE, na.strings=c("NA",""," "))
+```
+###Eastpolynesian population includind case and control 
+```{r }
+
+AllNewCleanPopulation%>% select(PCAETHBROAD,DIABETES)%>% table(., useNA='always')%>% cbind()
+
+EastPolynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("East Polynesian"), value=TRUE)
+
+EastPolynesiancasecontrol%>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+
+#outliers for East polynesian continous dataset
+
+vars2<-EastPolynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+vars2nooutlier<-EastPolynesiancasecontrol[,c("PATIENTID","WAIST","WEIGHT","HEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+
+
+j <- 0
+for (i in vars2){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars2)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars2)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+
+
+EastPolynesiancasecontrolNoOutlier<-EastPolynesiancasecontrol[-c(1189,153,454,344,797,1188,1241,
+                                                                 127,918,1310,1050,309,633,900,941,958,1015,1044,1152,1228,1284,365,894,959,515,88,794),]
+
+
+EastPolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+###East polynesiancase, Based on theree criteria column (DIABETES, DIABTREAT,DIABINCULDEB) column ( it means any individual with just one of the positive of these three criteria is diabetic case)
+
+Eastpolynesiancase<-EastPolynesiancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                                  PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD) %>% filter ((DIABETES==2)|(DIABINCULDEB==2)|(DIABETESTREAT!="T1D treatment"))
+
+
+
+#East polynesiancontrol
+
+Eastpolynesiancontrol<-anti_join(EastPolynesiancasecontrolNoOutlier,Eastpolynesiancase)%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                                  PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD)
+wholeEastpolynesianPopulation<-rbind(Eastpolynesiancontrol,Eastpolynesiancase)
+
+#####association of T2D and other variables
+
+DIABETES<-ifelse(wholeEastpolynesianPopulation$DIABETES=="2",1,0)
+wholeEastpolynesianPopulation[,"DIABETES"]<-c(DIABETES)
+
+model<-glm(DIABETES~AGECOL+BMI+WAIST+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+           family='binomial',data=wholeEastpolynesianPopulation)
+summary(model)
+
+coef(summary(model))[,'Pr(>|z|)']
+
+###Removing Waist makes BMI significant means WAIST is a strong associated factore to T2D when it is in a model it cancelles BMI effect
+model1<-glm(DIABETES~AGECOL+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeEastpolynesianPopulation)
+summary(model1)
+
+
+###addinh Hight and Weigth
+
+model1HeightWeight<-glm(DIABETES~AGECOL+ HEIGHT+WEIGHT+WAIST+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeEastpolynesianPopulation)
+summary(model1HeightWeight)
+
+coef(summary(model1HeightWeight))[,'Pr(>|z|)']
+
+```
+###Westpolynesian population including case and control 
+```{r }
+WestPolynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("West Polynesian"), value=TRUE)
+
+WestPolynesiancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+#outliers for West polynesian continoud dataset
+vars3<-WestPolynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+vars3nooutlier<-WestPolynesiancasecontrol[,c("PATIENTID","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+
+j <- 0
+for (i in vars3){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars3)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars3)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+
+WestPolynesiancasecontrolNoOutlier<-WestPolynesiancasecontrol[-c(392,468,491,128,602,381,476,597,714,715,793,77,378,525,793,796),]
+
+
+WestPolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+
+
+
+Westpolynesiancase<-WestPolynesiancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                                     PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD) %>%  filter  ((DIABETES==2)|(DIABINCULDEB==2)|(DIABETESTREAT!="Untreated"))
+
+
+#West polynesiancontrol
+
+Westpolynesiancontrol<-anti_join(WestPolynesiancasecontrolNoOutlier,Westpolynesiancase) %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                                     PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD)
+
+wholeWestpolynesianPopulation<-rbind(Westpolynesiancontrol,Westpolynesiancase)
+
+###Association T2D and other variables
+
+DIABETES<-ifelse(wholeWestpolynesianPopulation$DIABETES=="2",1,0)
+wholeWestpolynesianPopulation[,"DIABETES"]<-c(DIABETES)
+
+model2a<-glm(DIABETES~AGECOL+WAIST+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeWestpolynesianPopulation)
+summary(model2a)
+coef(summary(model2a))[,'Pr(>|z|)']
+
+###removing WAIST in this population doesnt  make that much effect on BMI
+model2b<-glm(DIABETES~AGECOL+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeWestpolynesianPopulation)
+summary(model2b)
+
+
+#####adding wight and hight
+model2HeightWeight<-glm(DIABETES~AGECOL+ HEIGHT+WEIGHT+WAIST+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeWestpolynesianPopulation)
+summary(model2HeightWeight)
+
+coef(summary(model2HeightWeight))[,'Pr(>|z|)']
+
+
+
+```
+###European population including case and control
+```{r}
+Europeancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("European"), value=TRUE)
+Europeancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+#outliers for European population continous dataset
+
+vars4<-Europeancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+vars4nooutlier<-Europeancasecontrol[,c("PATIENTID","WAIST","HEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+j <- 0
+for (i in vars4){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars4)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars4)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+#finding PATIENTID to remove outliers
+
+
+EuropeancasecontrolNoOutlier<-Europeancasecontrol[-c(25,29,174,669,1489,544,757,1429,148,154,170,187,608,1146,1271,1589,1482,1503,1206,561,874,877,946,1024,1139,1164,1188,1256,1368,1395,1480,1531,1585,1659,532,910,1268,1568,1633,490,730,80,1167,1571,1592,1604,1626,1684
+                                                     ),]
+
+EuropeancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+###European Case
+Europeancase<-EuropeancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                      PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD)  %>% filter ((DIABETES==2)|(DIABINCULDEB==2)|(DIABETESTREAT!="T1D treated with medication"))
+
+
+
+#European control
+
+###European control
+Europeancontrol<-anti_join(EuropeancasecontrolNoOutlier,Europeancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                      PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD) 
+
+wholeEuropeanPopulation<-rbind(Europeancontrol,Europeancase)
+
+DIABETES<-ifelse(wholeEuropeanPopulation$DIABETES=="2",1,0)
+
+wholeEuropeanPopulation[,"DIABETES"]<-c(DIABETES)
+
+model3<-glm(DIABETES~AGECOL+WAIST+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+              PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholeEuropeanPopulation)
+summary(model3)
+
+coef(summary(model3))[,'Pr(>|z|)']
+
+
+
+```
+###Polynesian population including case and control  
+```{r }
+Polynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("Polynesian"), value=TRUE)
+
+Polynesiancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+#outliers for  polynesian continoud dataset
+
+vars5<-Polynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+vars5nooutlier<-Polynesiancasecontrol[,c("PATIENTID","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+j <- 0
+for (i in vars5){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars5)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars5)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+#finding PATIENTID to remove outliers
+
+PolynesiancasecontrolNoOutlier<-Polynesiancasecontrol[-c(92,99,85,103,60),]
+
+PolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+
+
+###Mixed-Polynesian Case
+Polynesiancase<-PolynesiancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                          PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD) %>% filter ((DIABETES==2)|(DIABINCULDEB==2)|(DIABETESTREAT!="T1D treated with medication"))
+
+
+#Polynesian control
+
+Polynesiancontrol<-anti_join(PolynesiancasecontrolNoOutlier,Polynesiancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR,PCA1,PCA2,
+                                                          PCA3,PCA4,PCA5,PCA6,PCA7,PCA8,PCA9,PCA10,PCAETHBROAD)
+
+wholePolynesianPopulation<-rbind(Polynesiancontrol,Polynesiancase)
+
+DIABETES<-ifelse(wholePolynesianPopulation$DIABETES=="2",1,0)
+wholePolynesianPopulation[,"DIABETES"]<-c(DIABETES)
+
+model4<-glm(DIABETES~AGECOL+WAIST+BMI+as.factor(SEX)
+            +as.factor(GOUTAFFSTAT)+PCA1+PCA2+
+            PCA3+PCA4+PCA5+PCA6+PCA7+PCA8+PCA9+PCA10,
+            family='binomial',data=wholePolynesianPopulation)
+summary(model4)
+
+coef(summary(model4))[,'Pr(>|z|)']
+
+```

@@ -1,0 +1,729 @@
+---
+title: "T2DCasControlPopulation"
+output: html_document
+theme: cerulean
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+### In this version of my analysing I have used the phenotype datasets (4 datasets). This analysisng is one way of thinking to make up the case and control for T2D based on the tree criteria (which have different column naes in the 4 database but mainly is self/GP report for having T2D, under treatment/ medicine related to T2D and Randomglocuse.) in this version of analysing, I have made the case based on (or |) comand in filterring for three columns and then checked it by venn diagramm . there is another way of thinkimg just based on DIABETES column which was analysed and included venn diagramm to check. obvousely the number of cases are more in this version because it includes more diabeteic patients not just beased on the DIABETES column but alos based on two other columns ( criteria). To find any missig values are updayed in humancore exome in comparison with four phenotpe datasets, I have used the calculation of miising value percentages , if they are very close in both datasets ( core exome and phenotypes) I have decided to not bother myself to update or fill the missing ones but instead just report the percentage. Then I calculated mean between case ad controlby t-test for continous variables and also for categorical variables I used fisher-exact test. Significancy status of BMI is the core of the attention for this study.
+
+```{r }
+library(knitr)
+library(dplyr)
+library(narnia)
+library(gplots)
+```
+### "AllNewCleanData.txt" is the name of the master dataset made out of DM,RD,GOUT nadNPH datasets after filterring for NA, <18 years old, QCfaile and duplicated PATIENTID numbers.
+### 940= T2DCase for the master dateset, it comes out of 180(T2DCaseDM)+ 204 (T2DCaseGout)+ 204(T2DCaseRD)+ 72 (T2DCaseNPH) 1040 -100 (duplicated PATIENTIDs)= 940, 3408 (T2DControl)-39(outlires)= 3369
+```{r }
+
+AllNewCleanDataset<-read.delim( "../Data/AllNewCleanData2.txt"  , header=TRUE, na.strings=c("NA",""," "))
+AllNewCleanDataset%>% select(DIABETES) %>% table(., useNA='always') 
+```
+### the name of the first column of the master dataset renamed to be matched with PCA datafile
+```{r }
+colnames(AllNewCleanDataset)[1]<-"PATIENTID"
+```
+### PCADataset
+```{r }
+ALLPCADATA<-read.delim( "../Data/PCAtestdata(1).txt"  , header=TRUE, na.strings=c("NA",""," "))
+```
+### The masterdateset andPCA file merged to make the populations added to the datsetand exporting to Desktop to add one column for filterring The four populations (European, East Polynesian, West Polynesian and Polynesian (Mixed)) in a column added next to PCABROAD with the name of Ourcase
+
+### Thise dataset just has been dadded one column Ourcase which includes just Eu,EP,WP,MixedP
+```{r }
+AllNewCleanPopulation<-read.delim(  "../Data/T2DAllNewCleanDatasetAndPCA2.txt"   , header=TRUE, na.strings=c("NA",""," "))
+```
+###Eastpolynesian population includind case and control after filterring for outliers 
+### 381(T2DCase)-369 (T2DCase after filterring for outliers)=12 outliers case
+###960 (T2DControl)- 945 (T2DControl after filterring for outliers)= 15 outlier control
+```{r }
+
+AllNewCleanPopulation%>% select(PCAETHBROAD,DIABETES)%>% table(., useNA='always')%>% cbind()
+
+EastPolynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("East Polynesian"), value=TRUE)
+
+EastPolynesiancasecontrol%>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+
+#outliers for East polynesian continous dataset
+
+vars2<-EastPolynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+vars2nooutlier<-EastPolynesiancasecontrol[,c("PATIENTID","WAIST","WEIGHT","HEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+
+
+j <- 0
+for (i in vars2){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars2)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars2)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+
+
+EastPolynesiancasecontrolNoOutlier<-EastPolynesiancasecontrol[-c(1189,153,454,344,797,1188,1241,
+                                                                 127,918,1310,1050,309,633,900,941,958,1015,1044,1152,1228,1284,365,894,959,515,88,794),]
+
+
+write.table(EastPolynesiancasecontrolNoOutlier,"../Data/EastPolynesiancasecontrolNoOutlier.txt",sep="\t",row.names = F,quote = F)
+
+
+EastPolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+###East polynesiancase, Based on the DIABETES =2 column because this column has the most individuals in comparison with othre two coulmns, DIABETESTREAT and DIABINCLUDEB
+Eastpolynesiancase<-EastPolynesiancasecontrolNoOutlier %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR
+) %>% filter (DIABETES==2)
+
+
+###East polynesiancase with Venn diagram for three criteria
+x<-EastPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETES)%>% filter (DIABETES==2)
+x<-x$PATIENTID
+
+y<-EastPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABINCULDEB)%>% filter (DIABINCULDEB==2)
+y<-y$PATIENTID
+
+z<-EastPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETESTREAT)%>% filter (DIABETESTREAT!= "T1D Treatment")
+z<-z$PATIENTID
+samples<-list( DIABETESyes=x,DIABINCLUDEByes=y, TREATyes=z)
+venn(samples)
+
+###East Polynesian Case missing value 
+EastpolynesiancasemissingData<-print(miss_var_summary(Eastpolynesiancase))
+
+####East Polynesian Case missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+humancoreexome<-read.delim( "../Data/HumancoreexeomephenotypesBCSNPMAX.txt"   , header=TRUE, na.strings=c("NA",""," "))
+
+EastpolynesiancaseinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Eastpolynesiancase$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+EastpolynesiancaseinHumancoreexomemissingData<-print(miss_var_summary(EastpolynesiancaseinHumancoreexom))
+
+
+
+
+
+###East Polynesian Case continous variables
+EastpolynesiancaseContinousVariables<-Eastpolynesiancase %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                                    HDL,LDL,COLHDL,SURICACID,EGFR)
+
+
+EastpolynesiancaseMean<-colMeans(EastpolynesiancaseContinousVariables,na.rm=TRUE)
+kable(EastpolynesiancaseMean)
+
+EastpolynesiancaseSd<-apply(EastpolynesiancaseContinousVariables,2,sd,na.rm=TRUE)
+kable(EastpolynesiancaseSd)
+
+###East Polynesian Case categorical variables
+EastpolynesiancaseCategoricalVariables<-Eastpolynesiancase %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+vars<-c("KIDNEY","HEART","HIBP","SEX","GOUTAFFSTAT")
+
+for(i in vars){
+  print(i)
+  print(table(EastpolynesiancaseCategoricalVariables[,i]))
+}
+
+for(i in vars){
+  print(i)
+  print(prop.table(table(EastpolynesiancaseCategoricalVariables[,i])))
+}
+
+###East polynesian Control based on taking out the Case
+Eastpolynesiancontrol<-anti_join(EastPolynesiancasecontrolNoOutlier,Eastpolynesiancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR
+)
+
+###East Polynesian Control missing value
+EastpolynesiancontrolmissingData<-print(miss_var_summary(Eastpolynesiancontrol))
+
+####East Polynesian Control missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+EastpolynesiancontrolinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Eastpolynesiancontrol$PATIENTID)%>%select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+EastpolynesiancontrolinHumancoreexommissingData<-print(miss_var_summary(EastpolynesiancontrolinHumancoreexom))
+
+
+###East Polynesian Control continous variables
+EastpolynesiancontrolContinousVariables<-Eastpolynesiancontrol %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                                          HDL,LDL,COLHDL,SURICACID,EGFR)
+
+EastpolynesiancontrolCategoricalVariables<-Eastpolynesiancontrol %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+EastpolynesiancontrolMean<-colMeans(EastpolynesiancontrolContinousVariables,na.rm=TRUE)
+kable(EastpolynesiancontrolMean)
+
+EastpolynesiancontrolSd<-apply(EastpolynesiancontrolContinousVariables,2,sd,na.rm=TRUE)
+kable(EastpolynesiancontrolSd)
+
+###East Polynesian Control categorical variables
+for(i in vars){
+  print(i)
+  print(table(EastpolynesiancontrolCategoricalVariables[,i]))
+}
+for(i in vars){
+  print(i)
+  print(prop.table(table(EastpolynesiancontrolCategoricalVariables[,i])))
+}
+
+#T-test fo East polynesian continous variables
+
+mapply(function(x,y){if(all(is.na(x)) || all(is.na(y))) NULL else t.test(x, y, na.action=na.omit)
+}, EastpolynesiancaseContinousVariables, EastpolynesiancontrolContinousVariables)
+
+#fisher-test fo East polynesian categorical variables
+
+confTab <-table(EastPolynesiancasecontrolNoOutlier$DIABETES,EastPolynesiancasecontrolNoOutlier$KIDNEY,dnn=c("DIABETES","KIDNEY")) 
+confTab 
+fisher.test(confTab)
+
+confTab <-table(EastPolynesiancasecontrolNoOutlier$DIABETES,EastPolynesiancasecontrolNoOutlier$HEART,dnn=c("DIABETES","HEART")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EastPolynesiancasecontrolNoOutlier$DIABETES,EastPolynesiancasecontrolNoOutlier$HIBP,dnn=c("DIABETES","HIBP")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EastPolynesiancasecontrolNoOutlier$DIABETES,EastPolynesiancasecontrolNoOutlier$SEX,dnn=c("DIABETES","SEX")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EastPolynesiancasecontrolNoOutlier$DIABETES,EastPolynesiancasecontrolNoOutlier$GOUTAFFSTAT,dnn=c("DIABETES","GOUTAFFSTAT")) 
+confTab 
+fisher.test(confTab )
+
+```
+###Westpolynesian population includind case and control after filterring for outliers  200(T2DCase)-196 (T2DCase after filterring for outliers)=4 outliers case 601 (T2DControl)- 589 (T2DControl after filterring for outliers)= 12 outlier control
+```{r }
+
+WestPolynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("West Polynesian"), value=TRUE)
+
+WestPolynesiancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+#outliers for West polynesian continoud dataset
+vars3<-WestPolynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+vars3nooutlier<-WestPolynesiancasecontrol[,c("PATIENTID","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+
+j <- 0
+for (i in vars3){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars3)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars3)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+
+WestPolynesiancasecontrolNoOutlier<-WestPolynesiancasecontrol[-c(392,468,491,128,602,381,476,597,714,715,793,77,378,525,793,796),]
+
+
+WestPolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+
+write.table(WestPolynesiancasecontrolNoOutlier,"../Data/WestPolynesiancasecontrolNoOutlier.txt",sep="\t",row.names = F,quote = F)
+
+##West polynesian Case 
+Westpolynesiancase<-WestPolynesiancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR) %>% filter (DIABETES==2)
+
+
+###West polynesiancase with Venn diagram for three criteria
+x<-WestPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETES)%>% filter (DIABETES==2)
+x<-x$PATIENTID
+
+y<-WestPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABINCULDEB)%>% filter (DIABINCULDEB==2)
+y<-y$PATIENTID
+
+z<-WestPolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETESTREAT)%>% filter (DIABETESTREAT!= "Untreated")
+z<-z$PATIENTID
+
+samples<-list( DIABETESyes=x,DIABINCLUDEByes=y, TREATyes=z)
+venn(samples)
+
+##West polynesian Case missing values
+WestpolynesiancasemissingData<-print(miss_var_summary(Westpolynesiancase))
+
+####West Polynesian Case missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+WestpolynesiancaseinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Westpolynesiancase$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+WestpolynesiancaseinHumancoreexommissingData<-print(miss_var_summary(WestpolynesiancaseinHumancoreexom))
+
+##West polynesian Case continous variables
+WestpolynesiancaseContinousVariables<-Westpolynesiancase %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                                    HDL,LDL,COLHDL,SURICACID,EGFR)
+
+WestpolynesiancaseMean<-colMeans(WestpolynesiancaseContinousVariables,na.rm=TRUE)
+kable(WestpolynesiancaseMean)
+
+WestpolynesiancaseSd<-apply(WestpolynesiancaseContinousVariables,2,sd,na.rm=TRUE)
+kable(WestpolynesiancaseSd)
+
+
+###West polynesian case categorical variables
+WestpolynesiancaseCategoricalVariables<-Westpolynesiancase %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+vars<-c("KIDNEY","HEART","HIBP","SEX","GOUTAFFSTAT")
+
+for(i in vars){
+  print(i)
+  print(table(WestpolynesiancaseCategoricalVariables[,i]))
+}
+
+for(i in vars){
+  print(i)
+  print(prop.table(table(WestpolynesiancaseCategoricalVariables[,i])))
+}
+
+###West polynesian Control
+Westpolynesiancontrol<-anti_join(WestPolynesiancasecontrolNoOutlier,Westpolynesiancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR
+)
+
+###West polynesian Control missing values
+WestpolynesiancontrolmissingData<-print(miss_var_summary(Westpolynesiancontrol))
+
+####West Polynesian Control missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+WestpolynesiancontrolinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Westpolynesiancontrol$PATIENTID)%>%select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+WestpolynesiancontrolinHumancoreexommissingData<-print(miss_var_summary(WestpolynesiancontrolinHumancoreexom))
+
+
+###West polynesian Control continous data
+WestpolynesiancontrolContinousVariables<-Westpolynesiancontrol %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                                          HDL,LDL,COLHDL,SURICACID,EGFR)
+WestpolynesiancontrolCategoricalVariables<-Westpolynesiancontrol %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+WestpolynesiancontrolMean<-colMeans(WestpolynesiancontrolContinousVariables,na.rm=TRUE)
+kable(WestpolynesiancontrolMean)
+
+WestpolynesiancontrolSd<-apply(WestpolynesiancontrolContinousVariables,2,sd,na.rm=TRUE)
+kable(WestpolynesiancontrolSd)
+
+###West polynesian Control categorical data
+for(i in vars){
+  print(i)
+  print(table(WestpolynesiancontrolCategoricalVariables[,i]))
+}
+for(i in vars){
+  print(i)
+  print(prop.table(table(WestpolynesiancontrolCategoricalVariables[,i])))
+}
+
+#T-test fo West polynesian continous variables
+
+mapply(function(x,y){if(all(is.na(x)) || all(is.na(y))) NULL else t.test(x, y, na.action=na.omit)
+}, WestpolynesiancaseContinousVariables, WestpolynesiancontrolContinousVariables)
+
+#fisher-test fo West polynesian categorical variables
+
+confTab <-table(WestPolynesiancasecontrolNoOutlier$DIABETES,WestPolynesiancasecontrolNoOutlier$KIDNEY,dnn=c("DIABETES","KIDNEY")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(WestPolynesiancasecontrolNoOutlier$DIABETES,WestPolynesiancasecontrolNoOutlier$HEART,dnn=c("DIABETES","HEART")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(WestPolynesiancasecontrolNoOutlier$DIABETES,WestPolynesiancasecontrolNoOutlier$HIBP,dnn=c("DIABETES","HIBP")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(WestPolynesiancasecontrolNoOutlier$DIABETES,WestPolynesiancasecontrolNoOutlier$SEX,dnn=c("DIABETES","SEX")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(WestPolynesiancasecontrolNoOutlier$DIABETES,WestPolynesiancasecontrolNoOutlier$GOUTAFFSTAT,dnn=c("DIABETES","GOUTAFFSTAT")) 
+confTab 
+fisher.test(confTab )
+
+
+```
+###European population includind case and control after filterring for outliers   263(T2DCase)-250 (T2DCase after filterring for outliers)=13 outliers case 1445 (T2DControl)- 1409 (T2DControl after filterring for outliers)= 36 outliers
+```{r }
+
+Europeancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("European"), value=TRUE)
+Europeancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+#outliers for European population continous dataset
+
+vars4<-Europeancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+vars4nooutlier<-Europeancasecontrol[,c("PATIENTID","WAIST","HEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+j <- 0
+for (i in vars4){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars4)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars4)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+#finding PATIENTID to remove outliers
+
+EuropeancasecontrolNoOutlier<-Europeancasecontrol[-c(25,29,174,667,1487,544,755,1427,148,154,170,187,606,1144,1269,1587,1480,1501,1204,561,872,875,944,1022,1137,1162,1186,1254,1366,1393,1478,1529,1583,1657,532,908,1266,1566,1631,490,728,80,1165,1569,1590,1602,1624,1682
+                                                     ),]
+
+EuropeancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+write.table(EuropeancasecontrolNoOutlier,"../Data/EuropeancasecontrolNoOutlier.txt",sep="\t",row.names = F,quote = F)
+
+EuropeancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+###European Case
+Europeancase<-EuropeancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR) %>% filter (DIABETES==2)
+
+###European with Venn diagram for three criteria
+x<-EuropeancasecontrolNoOutlier %>% select (PATIENTID,DIABETES)%>% filter (DIABETES==2)
+x<-x$PATIENTID
+
+y<-EuropeancasecontrolNoOutlier %>% select (PATIENTID,DIABINCULDEB)%>% filter (DIABINCULDEB==2)
+y<-y$PATIENTID
+
+z<-EuropeancasecontrolNoOutlier %>% select (PATIENTID,DIABETESTREAT)%>% filter (DIABETESTREAT!= "Untreated")
+z<-z$PATIENTID
+
+samples<-list( DIABETESyes=x,DIABINCLUDEByes=y, TREATyes=z)
+venn(samples)
+
+
+###European Case missing variables
+EuropeancasemissingData<-print(miss_var_summary(Europeancase))
+
+####European Case missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+EuropeancaseinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Europeancase$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+EuropeancaseinHumancoreexommissingData<-print(miss_var_summary(EuropeancaseinHumancoreexom))
+
+
+###European Case continous variables
+EuropeancaseContinousVariables<-Europeancase %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                        HDL,LDL,COLHDL,SURICACID,EGFR)
+###European Case categorical variables
+EuropeancaseCategoricalVariables<-Europeancase %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+EuropeancaseMean<-colMeans(EuropeancaseContinousVariables,na.rm=TRUE)
+kable(EuropeancaseMean)
+
+EuropeancaseSd<-apply(EuropeancaseContinousVariables,2,sd,na.rm=TRUE)
+kable(EuropeancaseSd)
+
+vars<-c("KIDNEY","HEART","HIBP","SEX","GOUTAFFSTAT")
+
+for(i in vars){
+  print(i)
+  print(table(EuropeancaseCategoricalVariables[,i]))
+}
+
+for(i in vars){
+  print(i)
+  print(prop.table(table(EuropeancaseCategoricalVariables[,i])))
+}
+
+###European control
+Europeancontrol<-anti_join(EuropeancasecontrolNoOutlier,Europeancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR)
+
+###European control missing variables
+EuropeancontrolmissingData<-print(miss_var_summary(Europeancontrol))
+
+####European Control missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+EuropeancontrolinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Europeancontrol$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+EuropeancontrolinHumancoreexommissingData<-print(miss_var_summary(EuropeancontrolinHumancoreexom))
+
+
+###European control continous variables
+EuropeancontrolContinousVariables<-Europeancontrol %>% select(AGECOL,WAIST,WEIGHT,HEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                              HDL,LDL,COLHDL,SURICACID,EGFR)
+ ###European control categorical variables
+EuropeancontrolCategoricalVariables<-Europeancontrol %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+EuropeancontrolMean<-colMeans(EuropeancontrolContinousVariables,na.rm=TRUE)
+kable(EuropeancontrolMean)
+
+EuropeancontrolSd<-apply(EuropeancontrolContinousVariables,2,sd,na.rm=TRUE)
+kable(EuropeancontrolSd)
+
+for(i in vars){
+  print(i)
+  print(table(EuropeancontrolCategoricalVariables[,i]))
+}
+for(i in vars){
+  print(i)
+  print(prop.table(table(EuropeancontrolCategoricalVariables[,i])))
+}
+
+#T-test for European population continous variables
+
+mapply(function(x,y){if(all(is.na(x)) || all(is.na(y))) NULL else t.test(x, y, na.action=na.omit)
+}, EuropeancaseContinousVariables, EuropeancontrolContinousVariables)
+
+#fisher-test fo European population categorical variables
+
+confTab <-table(EuropeancasecontrolNoOutlier$DIABETES,EuropeancasecontrolNoOutlier$KIDNEY,dnn=c("DIABETES","KIDNEY")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EuropeancasecontrolNoOutlier$DIABETES,EuropeancasecontrolNoOutlier$HEART,dnn=c("DIABETES","HEART")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EuropeancasecontrolNoOutlier$DIABETES,EuropeancasecontrolNoOutlier$HIBP,dnn=c("DIABETES","HIBP")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EuropeancasecontrolNoOutlier$DIABETES,EuropeancasecontrolNoOutlier$SEX,dnn=c("DIABETES","SEX")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(EuropeancasecontrolNoOutlier$DIABETES,EuropeancasecontrolNoOutlier$GOUTAFFSTAT,dnn=c("DIABETES","GOUTAFFSTAT")) 
+confTab 
+fisher.test(confTab )
+
+```
+###Mixedpolynesian population includind case and control after filterring for outliers  27(T2DCase)-26 (T2DCase after filterring for outliers)=1 outliers case 102 (T2DControl)- 98 (T2DControl after filterring for outliers)= 4 outliers
+```{r }
+
+Polynesiancasecontrol<-subset(AllNewCleanPopulation,Ourcase %in% c("Polynesian"), value=TRUE)
+
+Polynesiancasecontrol %>% select (DIABETES) %>% table(., useNA='always')%>% cbind()
+
+#outliers for  polynesian continoud dataset
+
+vars5<-Polynesiancasecontrol[,c("AGECOL","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+vars5nooutlier<-Polynesiancasecontrol[,c("PATIENTID","WAIST","HEIGHT","WEIGHT","BMI","SYSTOLIC","AGECOL","DIASTOLIC","CHOLES","TRIGLY","HDL","LDL","COLHDL","SURICACID","EGFR")]
+
+j <- 0
+for (i in vars5){
+  j <- j+1
+  mn <- mean(i, na.rm=T)
+  ss <- sd(i, na.rm=T)
+  outliers <- i > (mn + 4*ss) | i < (mn - 4*ss)
+  table(outliers)
+  var_range <- c(min(mn - 4*ss, min(i, na.rm=T)),
+                 max(mn + 4*ss, max(i, na.rm=T)))
+  hist(i, xlim=var_range, main=names(vars5)[j])
+  abline(v = (mn + 4*ss))
+  abline(v = (mn - 4*ss))
+  abline(v =mn, col='blue')
+  cat(names(vars5)[j], "\n")
+  outliers %>%
+    which() %>% 
+    print()
+  cat('\n')
+}
+
+#finding PATIENTID to remove outliers
+
+
+PolynesiancasecontrolNoOutlier<-Polynesiancasecontrol[-c(92,99,85,103,60),]
+
+
+write.table(PolynesiancasecontrolNoOutlier,"../Data/PolynesiancasecontrolNoOutlier.txt",sep="\t",row.names = F,quote = F)
+
+PolynesiancasecontrolNoOutlier %>% select (DIABETES) %>% table(., useNA='always')%>% cbind() 
+
+###Mixed-Polynesian Case
+Polynesiancase<-PolynesiancasecontrolNoOutlier%>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR) %>% filter (DIABETES==2)
+
+
+###Mixed-Polynesian with Venn diagram for three criteria
+x<-PolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETES)%>% filter (DIABETES==2)
+x<-x$PATIENTID
+
+y<-PolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABINCULDEB)%>% filter (DIABINCULDEB==2)
+y<-y$PATIENTID
+
+z<-PolynesiancasecontrolNoOutlier %>% select (PATIENTID,DIABETESTREAT)%>% filter (DIABETESTREAT!= "Untreated")
+z<-z$PATIENTID
+
+samples<-list( DIABETESyes=x,DIABINCLUDEByes=y, TREATyes=z)
+venn(samples)
+
+
+###Polynesian Case missing variables
+PolynesiancasemissingData<-print(miss_var_summary(Polynesiancase))
+
+####MixedPolynesian Case missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+PolynesiancaseinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Polynesiancase$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+PolynesiancaseinHumancoreexommissingData<-print(miss_var_summary(PolynesiancaseinHumancoreexom))
+
+
+
+###Polynesian Case continous variables
+PolynesiancaseContinousVariables<-Polynesiancase %>% select(AGECOL,WAIST,HEIGHT,WEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                        HDL,LDL,COLHDL,SURICACID,EGFR)
+###Polynesian Case categorical variables
+PolynesiancaseCategoricalVariables<-Polynesiancase %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+PolynesiancaseMean<-colMeans(PolynesiancaseContinousVariables,na.rm=TRUE)
+kable(PolynesiancaseMean)
+
+PolynesiancaseSd<-apply(PolynesiancaseContinousVariables,2,sd,na.rm=TRUE)
+kable(PolynesiancaseSd)
+
+vars<-c("KIDNEY","HEART","HIBP","SEX","GOUTAFFSTAT")
+
+for(i in vars){
+  print(i)
+  print(table(PolynesiancaseCategoricalVariables[,i]))
+}
+
+for(i in vars){
+  print(i)
+  print(prop.table(table(PolynesiancaseCategoricalVariables[,i])))
+}
+
+###Polynesian control
+Polynesiancontrol<-anti_join(PolynesiancasecontrolNoOutlier,Polynesiancase)  %>% select (PATIENTID,AGECOL,SEX,DIABETES,WEIGHT,HEIGHT,DIABETESTREAT,
+                                  HIBP,HEART,KIDNEY,WAIST,BMI,SYSTOLIC,DIASTOLIC,GOUTAFFSTAT,DIABINCULDEB,
+                                  CHOLES,TRIGLY,HDL,LDL,COLHDL,SURICACID,EGFR)
+
+###Polynesian control missing variables
+PolynesiancontrolmissingData<-print(miss_var_summary(Polynesiancontrol))
+
+####MixedPolynesian Control missing value by filterring the same individuals from human core exome to check the percentage of missing value and if there is a big discrepancy I ahve to recover the NA
+
+PolynesiancontrolinHumancoreexom<- humancoreexome %>% filter(SUBJECT %in% Polynesiancase$PATIENTID )%>% select(SUBJECT,AGECOL,SEX,WEIGHT,HEIGHT,WAIST,BMI,T2DIABETES,DIABETESTREAT,TRIGLY)
+
+PolynesiancontrolinHumancoreexommissingData<-print(miss_var_summary(PolynesiancontrolinHumancoreexom))
+
+
+
+
+###Polynesian control continous variables
+PolynesiancontrolContinousVariables<-Polynesiancontrol %>% select(AGECOL,WAIST,WEIGHT,HEIGHT,BMI,SYSTOLIC,DIASTOLIC,CHOLES,TRIGLY,
+                                                              HDL,LDL,COLHDL,SURICACID,EGFR)
+ ###Polynesian control categorical variables
+PolynesiancontrolCategoricalVariables<-Polynesiancontrol %>% select(GOUTAFFSTAT,SEX,KIDNEY,HEART,HIBP)
+
+PolynesiancontrolMean<-colMeans(PolynesiancontrolContinousVariables,na.rm=TRUE)
+kable(PolynesiancontrolMean)
+
+PolynesiancontrolSd<-apply(PolynesiancontrolContinousVariables,2,sd,na.rm=TRUE)
+kable(PolynesiancontrolSd)
+
+for(i in vars){
+  print(i)
+  print(table(PolynesiancontrolCategoricalVariables[,i]))
+}
+for(i in vars){
+  print(i)
+  print(prop.table(table(PolynesiancontrolCategoricalVariables[,i])))
+}
+#T-test for polynesian continous variables
+
+mapply(function(x,y){if(all(is.na(x)) || all(is.na(y))) NULL else t.test(x, y, na.action=na.omit)
+}, PolynesiancaseContinousVariables, PolynesiancontrolContinousVariables)
+
+#fisher-test for polynesian categorical variables
+
+confTab <-table(PolynesiancasecontrolNoOutlier$DIABETES,PolynesiancasecontrolNoOutlier$KIDNEY,dnn=c("DIABETES","KIDNEY")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(PolynesiancasecontrolNoOutlier$DIABETES,PolynesiancasecontrolNoOutlier$HEART,dnn=c("DIABETES","HEART")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(PolynesiancasecontrolNoOutlier$DIABETES,PolynesiancasecontrolNoOutlier$HIBP,dnn=c("DIABETES","HIBP")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(PolynesiancasecontrolNoOutlier$DIABETES,PolynesiancasecontrolNoOutlier$SEX,dnn=c("DIABETES","SEX")) 
+confTab 
+fisher.test(confTab )
+
+confTab <-table(PolynesiancasecontrolNoOutlier$DIABETES,PolynesiancasecontrolNoOutlier$GOUTAFFSTAT,dnn=c("DIABETES","GOUTAFFSTAT")) 
+confTab 
+fisher.test(confTab )
+
+```
+
+
+
